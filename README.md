@@ -171,3 +171,327 @@ Next, it is necessary to prepare TRex to run in one of the available modes:
 |                                          |        - ASTF can be interactive (start, stop, stats) | 
 
 **Advance Stateful mode will not be considered in this document**
+
+## Stateless mode
+
+In this mode, a Python script is used to launch the generator, specifying all the generation parameters.
+
+## Testing Switching Methods
+
+TRex allows displaying statistics in the console only for 4 streams simultaneously. Therefore, for conducting testing, it is recommended to use a minimum of 4 5-tuple streams with the following parameters:
+| № | Description | ID | Source Parameters | Destination | Rate, pps | Frame Size, bytes | Stats |
+|---|-------------|----|-------------------|-------------|-----------|---------------------|-------|
+| 1 | Direct traffic (client --> server) | 10 | IP:172.16.7.1-172.16.7.60 | 172.16.12.10 | 10000 | 1400 | On |
+| 2 | Direct traffic (client --> server) | 20 | IP:172.16.7.61-172.16.7.120 | 172.16.12.20 | 10000 | 1400 | On |
+| 3 | Direct traffic (client --> server) | 30 | IP:172.16.7.121-172.16.7.180 | 172.16.12.30 | 10000 | 1400 | On |
+| 4 | Direct traffic (client --> server) | 40 | IP:172.16.7.181-172.16.7.240 | 172.16.12.40 | 10000 | 1400 | On |
+
+*Rate (pps, Packets Per Second): The frequency of packet generation per second.
+
+*Frame size (bytes): The size of the generated packet. The recommended size is 1400, but this parameter can be lowered in the presence of packet losses.
+
+*Stats: Determines whether the statistics of this stream will be displayed in the TRex console (specified in the Python script, parameter flow_stats).
+
+Packet losses from all monitored streams at the moment of switching are recorded in the report. Then, the largest number of losses is selected and converted into milliseconds (1 ms = 10 packets at a frequency of 10000 pps).
+
+## Setting up TRex in Stateless mode
+1) Prepare the Python script (ouvp_stl/new_marker_streams_p0_p1.py):
+```
+from trex_stl_lib.api import *
+ 
+def generate_payload(length):
+      word = ''
+      alphabet_size = len(string.ascii_letters)
+      for i in range(length):
+          word += string.ascii_letters[(i % alphabet_size)]
+      return word
+ 
+class STLS1(object):
+ 
+    def __init__ (self):
+        self.fsize       =200;
+ 
+    def create_stream_to_1 (self):
+        size = self.fsize - 4;
+        #generating 5tuple flows with 802.1p =0 and dscp = be (00, tos = 0), should be dropped
+        base_pkt =  Ether()/IP(src="172.16.7.1", dst = "172.16.12.10")/UDP(sport=1025,dport=12)
+        vm = STLScVmRaw( [ STLVmTupleGen( ip_min = "172.16.7.1",
+                                          ip_max = "172.16.7.60",
+                                          port_min = 1025,
+                                          port_max = 65535,
+                                          name = "tuple"),
+                           STLVmWrFlowVar(fv_name="tuple.ip", pkt_offset="IP.src"),
+                           STLVmFixIpv4(offset = "IP"),
+                           STLVmWrFlowVar(fv_name="tuple.port", pkt_offset="UDP.sport"),
+                          ],
+                        )
+        pkt = STLPktBuilder(pkt=base_pkt/generate_payload(size-len(base_pkt)), vm=vm)
+ 
+        return STLStream( name='1 stream to',
+                          packet = pkt,
+                          mode = STLTXCont( pps = 10000 ),
+                          flow_stats = STLFlowStats(pg_id = 10)
+                        )
+ 
+    def create_stream_to_2 (self):
+        size = self.fsize - 4;
+        #generating 5tuple flows with 802.1p =0 and dscp = be (00, tos = 0), should be dropped
+        base_pkt =  Ether()/IP(src="172.16.7.61", dst = "172.16.12.20")/UDP(sport=1025,dport=12)
+        vm = STLScVmRaw( [ STLVmTupleGen( ip_min = "172.16.7.61",
+                                          ip_max = "172.16.7.120",
+                                          port_min = 1025,
+                                          port_max = 65535,
+                                          name = "tuple"),
+                           STLVmWrFlowVar(fv_name="tuple.ip", pkt_offset="IP.src"),
+                           STLVmFixIpv4(offset = "IP"),
+                           STLVmWrFlowVar(fv_name="tuple.port", pkt_offset="UDP.sport"),
+                          ],
+                        )
+        pkt = STLPktBuilder(pkt=base_pkt/generate_payload(size-len(base_pkt)), vm=vm)
+ 
+        return STLStream( name='2 stream to',
+                          packet = pkt,
+                          mode = STLTXCont( pps = 10000 ),
+                          flow_stats = STLFlowStats(pg_id = 20)
+                        )
+ 
+    def create_stream_to_3 (self):
+        size = self.fsize - 4;
+        #generating 5tuple flows with 802.1p =0 and dscp = be (00, tos = 0), should be dropped
+        base_pkt =  Ether()/IP(src="172.16.7.121", dst = "172.16.12.30")/UDP(sport=1025,dport=12)
+        vm = STLScVmRaw( [ STLVmTupleGen( ip_min = "172.16.7.121",
+                                          ip_max = "172.16.7.180",
+                                          port_min = 1025,
+                                          port_max = 65535,
+                                          name = "tuple"),
+                           STLVmWrFlowVar(fv_name="tuple.ip", pkt_offset="IP.src"),
+                           STLVmFixIpv4(offset = "IP"),
+                           STLVmWrFlowVar(fv_name="tuple.port", pkt_offset="UDP.sport"),
+                          ],
+                        )
+        pkt = STLPktBuilder(pkt=base_pkt/generate_payload(size-len(base_pkt)), vm=vm)
+ 
+        return STLStream( name='3 stream to',
+                          packet = pkt,
+                          mode = STLTXCont( pps = 10000 ),
+                          flow_stats = STLFlowStats(pg_id = 30)
+                        )
+ 
+    def create_stream_to_4 (self):
+        size = self.fsize - 4;
+        #generating 5tuple flows with 802.1p =0 and dscp = be (00, tos = 0), should be dropped
+        base_pkt =  Ether()/IP(src="172.16.7.181", dst = "172.16.12.40")/UDP(sport=1025,dport=12)
+        vm = STLScVmRaw( [ STLVmTupleGen( ip_min = "172.16.7.181",
+                                          ip_max = "172.16.7.240",
+                                          port_min = 1025,
+                                          port_max = 65535,
+                                          name = "tuple"),
+                           STLVmWrFlowVar(fv_name="tuple.ip", pkt_offset="IP.src"),
+                           STLVmFixIpv4(offset = "IP"),
+                           STLVmWrFlowVar(fv_name="tuple.port", pkt_offset="UDP.sport"),
+                          ],
+                        )
+        pkt = STLPktBuilder(pkt=base_pkt/generate_payload(size-len(base_pkt)), vm=vm)
+ 
+        return STLStream( name='4 stream to',
+                          packet = pkt,
+                          mode = STLTXCont( pps = 10000 ),
+                          flow_stats = STLFlowStats(pg_id = 40)
+                        )
+ 
+ 
+ 
+    def get_streams (self, direction = 0, **kwargs):
+        # create 4 stream
+        #self.streams = streams
+        return [
+          self.create_stream_to_1(),
+          self.create_stream_to_2(),
+          self.create_stream_to_3(),
+          self.create_stream_to_4(),
+          ]
+ 
+# dynamic load - used for trex console or simulator
+def register():
+    return STLS1()
+```
+It is recommended to review the TRex documentation and scripts located in the /stl directory.
+
+2) Open TRex in two windows. In the first window, launch TRex in stateless mode:
+```
+[trexlab@lab-ine-trex-01 v3.00]$ sudo ./t-rex-64 -i
+ 
+-Per port stats table
+      ports |               0 |               1
+ -----------------------------------------------------------------------------------------
+   opackets |               0 |               0
+     obytes |               0 |               0
+   ipackets |               0 |               0
+     ibytes |               0 |               0
+    ierrors |               0 |               0
+    oerrors |               0 |               0
+      Tx Bw |       0.00  bps |       0.00  bps
+ 
+-Global stats enabled
+ Cpu Utilization : 0.0  %
+ Platform_factor : 1.0
+ Total-Tx        :       0.00  bps
+ Total-Rx        :       0.00  bps
+ Total-PPS       :       0.00  pps
+ Total-CPS       :       0.00  cps
+ 
+ Expected-PPS    :       0.00  pps
+ Expected-CPS    :       0.00  cps
+ Expected-BPS    :       0.00  bps
+ 
+ Active-flows    :        0  Clients :        0   Socket-util : 0.0000 %
+ Open-flows      :        0  Servers :        0   Socket :        0 Socket/Clients :  -nan
+ drop-rate       :       0.00  bps
+ current time    : 3.6 sec
+ test duration   : 0.0 sec
+```
+3) In the second window, access the TRex console:
+```
+[trexlab@lab-ine-trex-01 v3.00]$ sudo ./trex-console
+ 
+Using 'python3' as Python interpeter
+ 
+ 
+Connecting to RPC server on localhost:4501                   [SUCCESS]
+ 
+ 
+Connecting to publisher server on localhost:4500             [SUCCESS]
+ 
+ 
+Acquiring ports [0, 1]:                                      [SUCCESS]
+ 
+ 
+Server Info:
+ 
+Server version:   v3.00 @ STL
+Server mode:      Stateless
+Server CPU:       1 x Intel(R) Xeon(R) Gold 6252 CPU @ 2.10GHz
+Ports count:      2 x 10Gbps @ VMXNET3 Ethernet Controller
+ 
+-=TRex Console v3.0=-
+ 
+Type 'help' or '?' for supported actions
+ 
+trex>
+```
+4) In the second window, let's start the generator using the previously prepared script:
+
+```
+trex>start -f ouvp_stl/new_marker_streams_p0_p1.py --port 0 -d 180
+```
+
+   -f <file>: Specifies the path to the Python script.
+
+   --port <num>: Indicates the outgoing port of the generator; without this key, generation will be performed on all available TRex ports.
+
+   -d <num>: Sets the duration of generation in seconds (default value is 3600 seconds).
+
+
+5) In the second window, open the graphical interface of TRex:
+```
+trex>tui
+ 
+Global Statistics
+ 
+connection   : localhost, Port 4501                       total_tx_L2  : 64.09 Mbps
+version      : STL @ v3.00                                total_tx_L1  : 70.5 Mbps
+cpu_util.    : 0.74% @ 1 cores (1 per dual port)          total_rx     : 64.09 Mbps
+rx_cpu_util. : 0.34% / 40.06 Kpps                         total_pps    : 40.06 Kpps
+async_util.  : 0% / 12.73 bps                             drop_rate    : 0 bps
+total_cps.   : 0 cps                                      queue_full   : 0 pkts
+ 
+Port Statistics
+ 
+   port    |         0         |         1         |       total
+-----------+-------------------+-------------------+------------------
+owner      |              root |              root |
+link       |                UP |                UP |
+state      |      TRANSMITTING |              IDLE |
+speed      |           10 Gb/s |           10 Gb/s |
+CPU util.  |             0.74% |              0.0% |
+--         |                   |                   |
+Tx bps L2  |        64.09 Mbps |             0 bps |        64.09 Mbps
+Tx bps L1  |         70.5 Mbps |             0 bps |         70.5 Mbps
+Tx pps     |        40.06 Kpps |             0 pps |        40.06 Kpps
+Line Util. |            0.71 % |               0 % |
+---        |                   |                   |
+Rx bps     |             0 bps |        64.09 Mbps |        64.09 Mbps
+Rx pps     |             0 pps |        40.06 Kpps |        40.06 Kpps
+----       |                   |                   |
+opackets   |           1476516 |                 0 |           1476516
+ipackets   |                 0 |           1476516 |           1476516
+obytes     |         295303200 |                 0 |         295303200
+ibytes     |                 0 |         295303200 |         295303200
+tx-pkts    |        1.48 Mpkts |            0 pkts |        1.48 Mpkts
+rx-pkts    |            0 pkts |        1.48 Mpkts |        1.48 Mpkts
+tx-bytes   |          295.3 MB |               0 B |          295.3 MB
+rx-bytes   |               0 B |          295.3 MB |          295.3 MB
+-----      |                   |                   |
+oerrors    |                 0 |                 0 |                 0
+ierrors    |                 0 |                 0 |                 0
+ 
+status:  /
+ 
+Press 'ESC' for navigation panel...
+status:
+ 
+tui>
+```
+6) Enable the mode for displaying stream statistics by pressing the keys "Esc," "S," and then "Esc" again in sequence:
+
+```
+Global Statistics
+ 
+connection   : localhost, Port 4501                       total_tx_L2  : 64.17 Mbps
+version      : STL @ v3.00                                total_tx_L1  : 70.58 Mbps
+cpu_util.    : 0.83% @ 1 cores (1 per dual port)          total_rx     : 64.18 Mbps
+rx_cpu_util. : 0.31% / 40.11 Kpps                         total_pps    : 40.1 Kpps
+async_util.  : 0% / 8.93 bps                              drop_rate    : 0 bps
+total_cps.   : 0 cps                                      queue_full   : 0 pkts
+ 
+Streams Statistics
+ 
+  PG ID    |        10         |        20         |        30         |        40
+-----------+-------------------+-------------------+-------------------+------------------
+Tx pps     |           10 Kpps |           10 Kpps |           10 Kpps |           10 Kpps
+Tx bps L2  |           16 Mbps |           16 Mbps |           16 Mbps |           16 Mbps
+Tx bps L1  |         17.6 Mbps |         17.6 Mbps |         17.6 Mbps |         17.6 Mbps
+---        |                   |                   |                   |
+Rx pps     |           10 Kpps |           10 Kpps |           10 Kpps |           10 Kpps
+Rx bps     |           16 Mbps |           16 Mbps |           16 Mbps |           16 Mbps
+----       |                   |                   |                   |
+opackets   |           2074074 |           2074074 |           2074074 |           2074074
+ipackets   |           2074074 |           2074074 |           2074074 |           2074074
+obytes     |         414814800 |         414814800 |         414814800 |         414814800
+ibytes     |         414813800 |         414813800 |         414813800 |         414813800
+-----      |                   |                   |                   |
+opackets   |        2.07 Mpkts |        2.07 Mpkts |        2.07 Mpkts |        2.07 Mpkts
+ipackets   |        2.07 Mpkts |        2.07 Mpkts |        2.07 Mpkts |        2.07 Mpkts
+obytes     |         414.81 MB |         414.81 MB |         414.81 MB |         414.81 MB
+ibytes     |         414.81 MB |         414.81 MB |         414.81 MB |         414.81 MB
+ 
+status:  /
+ 
+Press 'ESC' for navigation panel...
+status:
+ 
+tui>
+```
+We are interested in discrepancies in the values of "opackets" and "ipackets" in each stream.
+
+You can stop the generator using the "stop" command.
+
+Exit from the graphical interface and console can be done using the "q" command.
+
+7) Perform the switch and record packet losses in each stream in the report.
+
+8) For repeated testing, follow these steps:
+
+* In the first window, restart TRex in stateless mode.
+
+* In the second window, re-enter the TRex console and repeat all actions.
